@@ -2,6 +2,7 @@ const app = require('./app')
 const SERVER_PORT = process.env.SERVER_PORT || 5050 
 const cors = require('cors')
 const { checkWebRisk } = require('./controllers/phishCheck.js')
+const contentRoutes = require('./routes/contentRoutes');
 
 app.use(cors())
 
@@ -19,6 +20,7 @@ app.get('/check-link', async (req, res) => {
     }
 })
 
+app.use('/api/content', contentRoutes);
 
 // listing at port 5000
 app.listen(SERVER_PORT, () => {
