@@ -1,9 +1,22 @@
 const app = require('./app')
-const SERVER_PORT = process.env.SERVER_PORT || 5000
+const SERVER_PORT = process.env.SERVER_PORT || 5050 
+const cors = require('cors')
+const { checkWebRisk } = require('./controllers/phishCheck.js')
 
+app.use(cors())
 
 app.get('/', (req, res) => {
     res.send("Hello FishGuard")
+})
+
+app.get('/check-link', async (req, res) => {
+    // call web risk api
+    try {
+        const result = await checkWebRisk("http://malware.testing.google.test/testing/malware/")
+        res.json({ data: result })
+    } catch (err) {
+        res.status(500).json({ error: "API call failed" })
+    }
 })
 
 
