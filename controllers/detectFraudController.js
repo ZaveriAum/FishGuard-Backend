@@ -1,6 +1,11 @@
 const detectFraudController = {
-    getSiteContent : async (content) => {
-        console.log(content)
+    getSiteContent : async (req, res) => {
+        console.log(req.body)
+    },
+
+    getNewTabUrl : async (req, res) => {
+        const { newUrl } = req.body;
+        console.log( {newUrl })
     }
 }
 
