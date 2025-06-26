@@ -66,7 +66,7 @@ async function generateConsolidatedReport({ maliciousLinks, sourcePageUrl, sourc
     const markdown = await generateThreatReport({
         maliciousLinks,
         sourcePageUrl,
-        sourcePageTitle,
+        sourcePageTitle
     });
 
     const lines = markdown.replace(/```json|```/g, '').trim().split('\n');
@@ -74,7 +74,7 @@ async function generateConsolidatedReport({ maliciousLinks, sourcePageUrl, sourc
     
     try {
         const parsedJson = JSON.parse(jsonString);
-        return parsedJson;
+        return { parsedJson, "isMalicious": true };
     } catch (error) {
         console.error("Failed to parse JSON from LLM response:", error);
         console.error("Raw LLM response:", jsonString);

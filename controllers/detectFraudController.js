@@ -15,6 +15,7 @@ const detectFraudController = {
                 return res.status(200).json({ message: "No links found to analyze." });
             }
             urls = ["http://testsafebrowsing.appspot.com/s/malware.html"]
+             
 
             const maliciousLinks = await checkAllUrls(urls);
             if (maliciousLinks.length === 0) {
@@ -23,7 +24,7 @@ const detectFraudController = {
                     threats: [] 
                 });
             }
-            console.log("!!!!!!!!!!!!!!!!Running generateConsolidatedReport")
+            // console.log("!!!!!!!!!!!!!!!!Running generateConsolidatedReport")
 
             const report = await generateConsolidatedReport({
                 maliciousLinks,
@@ -31,7 +32,8 @@ const detectFraudController = {
                 sourcePageTitle,
             });
 
-            res.status(200).json(report);
+            console.log(report)
+            res.status(200).json({ "parsedJson": report.parsedJson, "isMalicious": report.isMalicious});
 
         } catch (err) {
             console.error("Error in getSiteContent:", err);
