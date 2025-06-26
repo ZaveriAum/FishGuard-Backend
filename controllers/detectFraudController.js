@@ -4,16 +4,23 @@ const { checkWebRisk } = require('../controllers/phishCheck');
 const detectFraudController = {
     getSiteContent: async (req, res) => {
         try {          
-            const cleanBody = cleanContent(req.body);
-            const urls = extractUrls(req.body);
+            const { body } = req.body;
+
+            // const cleanBody = cleanContent(req.body);
+            if (typeof body !== 'string') {
+                return res.status(400).json({ error: 'Expected "content" to be a string in request body.' });
+            }
+
+            const urls = extractUrls(body);
+
             let responses = await Promise.all(
-                urls.rows.map(async (url)=> {
-                    return await extractUrls(url)
+                urls.map(async (url) => {
+                    return extractUrls(url); 
                 })
             );
-            for(let i = 0 ; i < responses.length ; i++){
-                console.log(responses[i]);
-            }
+
+            res.status(200).json({responses });
+
         } catch (err) {
             console.error(err);
             res.status(500).json({ error: 'Internal server error' });
