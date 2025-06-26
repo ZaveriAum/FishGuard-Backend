@@ -6,7 +6,7 @@ function cleanContent(html) {
   return $.text().toLowerCase().trim();
 }
 
-//extract urlsfrom body
+// Extract URLs from text
 function extractUrls(text) {
   const regex = /(https?:\/\/[^\s"'<>()]+)/g;
   return text.match(regex) || [];
