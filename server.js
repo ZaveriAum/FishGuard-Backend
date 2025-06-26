@@ -1,5 +1,5 @@
 const app = require('./app')
-const SERVER_PORT = process.env.SERVER_PORT || 5050 
+const SERVER_PORT = process.env.SERVER_PORT || 5000 
 const cors = require('cors')
 const { checkWebRisk } = require('./controllers/phishCheck.js')
 const contentRoutes = require('./routes/contentRoutes');

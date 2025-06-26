@@ -1,11 +1,17 @@
+const { processContent } = require('../controllers/contentController');
+const { checkWebRisk } = require('../controllers/phishCheck');
+
 const detectFraudController = {
     getSiteContent : async (req, res) => {
-        console.log(req.body)
+        const { content, url } = processContent(req, res)
+        const response = await checkWebRisk(url)
+        console.log(response);
     },
 
     getNewTabUrl : async (req, res) => {
         const { newUrl } = req.body;
-        console.log( {newUrl })
+        const response = await checkWebRisk(newUrl)
+        console.log(response);
     }
 }
 
