@@ -1,6 +1,8 @@
 const axios = require('axios');
 const { GoogleAuth } = require('google-auth-library');
 require('dotenv/config');
+const { generateThreatReport } = require('../utils/fishGuardLLM');
+
 
 // service account credentials
 const auth = new GoogleAuth({
@@ -11,7 +13,7 @@ const auth = new GoogleAuth({
 
 // use web risk api
 
-async function checkWebRisk(sourcePageUrlParam, sourcePageTitleParam, malURL) {
+async function checkWebRisk(url) {
     try {
         const client = await auth.getClient()
         const accessToken = await client.getAccessToken()
@@ -21,7 +23,7 @@ async function checkWebRisk(sourcePageUrlParam, sourcePageTitleParam, malURL) {
          
         // web risk api
         const response = await axios.get(
-            `https://webrisk.googleapis.com/v1/uris:search?uri=${encodeURIComponent(malURL)}&threatTypes=SOCIAL_ENGINEERING&threatTypes=MALWARE&threatTypes=UNWANTED_SOFTWARE`,
+            `https://webrisk.googleapis.com/v1/uris:search?uri=${encodeURIComponent(url)}&threatTypes=SOCIAL_ENGINEERING&threatTypes=MALWARE&threatTypes=UNWANTED_SOFTWARE`,
             {
                 headers: {
                     'Authorization': `Bearer ${accessToken.token}`
@@ -31,62 +33,18 @@ async function checkWebRisk(sourcePageUrlParam, sourcePageTitleParam, malURL) {
         // if empty link is safe
         // otherwise will be list of threats
         data = response.data
-        console.log(data)
+        console.log("WEBRISK", data)
+        console.log("WEBRISK", url)
         const safe = Object.keys(data).length === 0
         const risk = safe ? 'safe'.toUpperCase() : 'malicious'.toUpperCase()
         const threats = data?.threat?.threatTypes || []
         
-        
-        response_body = {
-            "clickedUrl": malURL,
-            "sourcePageUrl": sourcePageUrlParam,
-            "sourcePageTitle": sourcePageTitleParam,
-            "riskIndicators": threats,
-            "webRiskVerdict": risk
-        }
-        console.log(response_body)
+        // console.log(response_body)
 
-        const {
-            clickedUrl,
-            sourcePageUrl,
-            sourcePageTitle,
-            riskIndicators,
-            webRiskVerdict,
-        } = response_body.body;
-
-        const markdown = await generateRiskExplanation({
-            clickedUrl,
-            sourcePageUrl,
-            sourcePageTitle,
-            riskIndicators: riskIndicators.join(', '),
-            webRiskVerdict,
-            sourceSnippet
-        });
-  
-        // Simple Markdown-to-JSON parser
-        const lines = markdown.split('\n');
-        const extract = (header) => {
-            const idx = lines.findIndex(l => l.startsWith(`**${header}:**`));
-            if (idx === -1) return '';
-            let text = lines[idx].replace(`**${header}:**`, '').trim();
-            for (let i = idx + 1; i < lines.length && !lines[i].startsWith('**'); i++) {
-            text += ' ' + lines[i].trim();
-            }
-            return text.trim();
+        return {
+            url: url,
+            threats: data?.threat?.threatTypes || [],
         };
-  
-        const safetyTipsBlock = extract('Safety Tips');
-        const safetyTips = safetyTipsBlock
-            .split('\n')
-            .map(l => l.replace(/^-\s*/, '').trim())
-            .filter(Boolean);
-    
-        res.json({
-            riskSummary:    extract('Risk Summary'),
-            detailedReason: extract('Detailed Reason'),
-            nextSteps:      extract('Next Steps'),
-            safetyTips
-        });
         
         
     } catch (err) {
@@ -95,4 +53,40 @@ async function checkWebRisk(sourcePageUrlParam, sourcePageTitleParam, malURL) {
     }
 }
 
-module.exports = { checkWebRisk }
+
+async function checkAllUrls(urls) {
+    const results = await Promise.all(
+        urls.map(url => checkWebRisk(url))
+    );
+
+    return results.filter(result => result !== null);
+}
+
+async function generateConsolidatedReport({ maliciousLinks, sourcePageUrl, sourcePageTitle }) {
+    const markdown = await generateThreatReport({
+        maliciousLinks,
+        sourcePageUrl,
+        sourcePageTitle,
+    });
+
+    const lines = markdown.replace(/```json|```/g, '').trim().split('\n');
+    let jsonString = lines.join('');
+    
+    try {
+        const parsedJson = JSON.parse(jsonString);
+        return parsedJson;
+    } catch (error) {
+        console.error("Failed to parse JSON from LLM response:", error);
+        console.error("Raw LLM response:", jsonString);
+        return {
+            riskSummary: "An error occurred while generating the report.",
+            detailedReason: "The AI model returned a response that could not be understood.",
+            nextSteps: "Please try again later.",
+            safetyTips: []
+        };
+    }
+}
+
+
+module.exports = { checkAllUrls, generateConsolidatedReport, checkWebRisk};
+

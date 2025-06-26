@@ -1,6 +1,9 @@
 const app = require('./app')
-const SERVER_PORT = process.env.SERVER_PORT || 5000 
+const { checkWebRisk } = require('./controllers/phishCheck')
+const SERVER_PORT = process.env.SERVER_PORT || 5050 
+// const { cors } = require('cors')
 
+// app.use(cors())
 
 app.get('/', (req, res) => {
     res.send("Hello FishGuard")
@@ -10,3 +13,5 @@ app.get('/', (req, res) => {
 app.listen(SERVER_PORT, () => {
     console.log(`Server listening to http://localhost:${SERVER_PORT}`)
 })
+
+// checkWebRisk("hi", "title", "malware.testing.google.test/testing/malware/")

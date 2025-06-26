@@ -1,117 +1,82 @@
-// fhishguardLLM.js
-'use strict';
+require('dotenv/config');
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-// Initialize the Gemini API client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Retry function with exponential backoff
-async function retryWithBackoff(fn, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (error.status === 429 && attempt < maxRetries) {
-        // Rate limit error - wait with exponential backoff
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Max 10 seconds
-        console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      throw error;
-    }
-  }
-}
+const generationConfig = {
+  temperature: 0.2,
+  topK: 1,
+  topP: 1,
+  maxOutputTokens: 4096,
+  response_mime_type: "application/json",
+};
 
-// Try multiple models with fallback
-async function tryModels(prompt) {
-  const models = [
-    "gemini-1.5-flash",  // Fastest, different rate limits
-    "gemini-1.5-pro",    // Fallback if flash fails
-    "gemini-2.0-flash-exp" // Experimental fallback
-  ];
+const safetySettings = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+];
 
-  for (const modelName of models) {
-    try {
-      console.log(`Trying model: ${modelName}`);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      if (text) {
-        console.log(`Successfully used model: ${modelName}`);
-        return text;
-      }
-    } catch (error) {
-      console.log(`Model ${modelName} failed: ${error.message}`);
-      if (modelName === models[models.length - 1]) {
-        // Last model failed, throw the error
-        throw error;
-      }
-      // Try next model
-      continue;
-    }
-  }
-  
-  throw new Error('All models failed');
-}
 
-async function generateRiskExplanation({
-  clickedUrl,
-  sourcePageUrl,
-  sourcePageTitle,
-  riskIndicators,
-  webRiskVerdict,
-  sourceSnippet
+async function generateThreatReport({
+    maliciousLinks,
+    sourcePageUrl,
+    sourcePageTitle,
 }) {
-  const prompt = `
-You are PhishGuard, an AI security assistant that helps users understand suspicious links they click on.
+    const threatsFound = maliciousLinks.map((link, index) => 
+        `${index + 1}. URL: ${link.url}\n   Threats: ${link.threats.join(', ')}`
+    ).join('\n');
 
-## Context
-- User clicked on the link: ${clickedUrl}
-- The link was found on the source page: ${sourcePageUrl} (Page title: "${sourcePageTitle}").
-- The phishing detection model found these risk indicators: ${riskIndicators}.
-- Google Web Risk API says: ${webRiskVerdict}.
-- Additional text context where the link was found: "${sourceSnippet}".
+    const prompt = `
+You are PhishGuard, an AI security assistant. Your task is to analyze a list of malicious links found on a webpage and generate a clear, helpful, and non-technical security report for the user.
 
-## Instructions
-1. Analyze this information step-by-step.
-2. Provide a short, clear **risk summary** in plain language (1–2 sentences).
-3. Provide a **detailed reason** explaining why this link may be risky, referring to the source page, domain, suspicious patterns, and any unusual context.
-4. Provide **practical next steps** for the user to stay safe right now.
-5. Provide **1–2 short safety tips** to help avoid such links in the future.
-6. Write in a friendly, helpful tone — avoid overly technical jargon.
+## CONTEXT
+- The user was on the page: "${sourcePageTitle}" (${sourcePageUrl}).
+- My automated scan found the following ${maliciousLinks.length} suspicious link(s) on that page:
+${threatsFound}
 
-## Output format (use markdown):
-**Risk Summary:**
-...
+## INSTRUCTIONS
+1.  Analyze the list of suspicious links and their associated threat types (e.g., SOCIAL_ENGINEERING, MALWARE).
+2.  Provide a single, consolidated report in JSON format.
+3.  The tone should be calm, helpful, and reassuring, not alarming.
+4.  Do not use markdown in the JSON values. Use plain text.
 
-**Detailed Reason:**
-...
-
-**Next Steps:**
-...
-
-**Safety Tips:**
-- Tip 1
-- Tip 2
-
----
-
-Now, produce a helpful explanation based on the given context.
+## JSON OUTPUT STRUCTURE
+Please provide your response as a single JSON object with the following structure:
+{
+  "riskSummary": "A very brief, 1-2 sentence summary of the findings. Start with a reassuring tone.",
+  "detailedReason": "A paragraph explaining WHY these links are considered risky in simple terms. Mention the threat types found and what they mean (e.g., 'Social engineering means a site might try to trick you into giving away passwords'). Group the explanation if multiple links have the same threat type.",
+  "nextSteps": "A clear, actionable list of 2-3 immediate steps the user should take to stay safe, like 'Don't click these links' or 'Close the suspicious browser tab'.",
+  "safetyTips": [
+    "A short, general safety tip to avoid future risks.",
+    "Another short, general safety tip."
+  ]
+}
 `.trim();
 
-  try {
-    return await retryWithBackoff(async () => {
-      return await tryModels(prompt);
-    });
-  } catch (error) {
-    console.error('Gemini API error:', error);
-    throw new Error(`Failed to generate explanation: ${error.message}`);
-  }
+    try {
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig,
+            safetySettings 
+        });
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        return text;
+
+    } catch (error) {
+        console.error('Gemini API error:', error);
+        const fallbackError = {
+            riskSummary: "Could not generate a security report.",
+            detailedReason: `An error occurred while contacting the AI security assistant: ${error.message}`,
+            nextSteps: "The automated scan found potential risks, but the detailed analysis failed. It is safest to close the browser tab and avoid clicking any suspicious links.",
+            safetyTips: ["Always be cautious of links from untrusted sources."]
+        };
+        return JSON.stringify(fallbackError, null, 2);
+    }
 }
 
-module.exports = { generateRiskExplanation }; 
+module.exports = { generateThreatReport };
