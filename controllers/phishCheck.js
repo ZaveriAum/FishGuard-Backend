@@ -18,8 +18,8 @@ async function checkWebRisk(url) {
         const client = await auth.getClient()
         const accessToken = await client.getAccessToken()
         
-        console.log('Project ID:', await auth.getProjectId())
-        console.log('Token exists:', !!accessToken.token)
+        // console.log('Project ID:', await auth.getProjectId())
+        // console.log('Token exists:', !!accessToken.token)
          
         // web risk api
         const response = await axios.get(
@@ -33,14 +33,16 @@ async function checkWebRisk(url) {
         // if empty link is safe
         // otherwise will be list of threats
         data = response.data
-        console.log("WEBRISK", data)
-        console.log("WEBRISK", url)
+        // console.log("WEBRISK", data)
+        // console.log("WEBRISK", url)
         const safe = Object.keys(data).length === 0
         const risk = safe ? 'safe'.toUpperCase() : 'malicious'.toUpperCase()
         const threats = data?.threat?.threatTypes || []
         
         // console.log(response_body)
-
+        if (safe) {
+            return null
+        }
         return {
             url: url,
             threats: data?.threat?.threatTypes || [],
@@ -74,7 +76,7 @@ async function generateConsolidatedReport({ maliciousLinks, sourcePageUrl, sourc
     
     try {
         const parsedJson = JSON.parse(jsonString);
-        return { parsedJson, "isMalicious": true };
+        return { parsedJson, "isMalicious": true, maliciousLink: maliciousLinks[0].url};
     } catch (error) {
         console.error("Failed to parse JSON from LLM response:", error);
         console.error("Raw LLM response:", jsonString);

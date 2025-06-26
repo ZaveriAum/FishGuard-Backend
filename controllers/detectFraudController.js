@@ -9,15 +9,16 @@ const detectFraudController = {
             if (typeof content !== 'string') {
                 return res.status(400).json({ error: 'Expected "content" to be a string in request body.' });
             }
-
-            let urls = extractUrls(content);
+            const urls = extractUrls(content);
+            // console.log(content)
             if (!urls || urls.length === 0) {
                 return res.status(200).json({ message: "No links found to analyze." });
             }
-            urls = ["http://testsafebrowsing.appspot.com/s/malware.html"]
+            // urls = ["http://testsafebrowsing.appspot.com/s/malware.html"]
              
 
             const maliciousLinks = await checkAllUrls(urls);
+            // console.log('Malicious links: ', maliciousLinks)
             if (maliciousLinks.length === 0) {
                 return res.status(200).json({ 
                     summary: "All links appear to be safe.",
@@ -31,9 +32,8 @@ const detectFraudController = {
                 sourcePageUrl,
                 sourcePageTitle,
             });
-
-            console.log(report)
-            res.status(200).json({ "parsedJson": report.parsedJson, "isMalicious": report.isMalicious});
+            // console.log(report)
+            res.status(200).json({ "parsedJson": report.parsedJson, "isMalicious": report.isMalicious, maliciousLink: maliciousLinks[0].url});
 
         } catch (err) {
             console.error("Error in getSiteContent:", err);
@@ -44,6 +44,7 @@ const detectFraudController = {
     getNewTabUrl: async (req, res) => {
         try {
             const { newUrl } = req.body;
+            console.log(newUrl)
             const maliciousLinks = await checkAllUrls([newUrl]);
 
             if (maliciousLinks.length === 0) {
